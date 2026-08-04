@@ -13,6 +13,7 @@ export default function TriviaGame() {
   const [answered, setAnswered] = useState<boolean>();
   const [rightAnswer, setRightAnswer] = useState<boolean>();
   const [totalQuestions, setTotalQuestions] = useState<number>(0);
+  const [points, setPoints] = useState<number>(0);
 
   useEffect(() => {
     async function cargandoDatos() {
@@ -66,15 +67,13 @@ export default function TriviaGame() {
   };
 
   function prepareOptions() {
-    console.log("index: " + questionIndex);
-    
-    if (questions) {
+    if (questions && questionIndex < totalQuestions) {
       const options: string[] = [
         questions[questionIndex].correct_answer,
         ...questions[questionIndex].incorrect_answers,
       ];
 
-      setAnswerOptions(options);
+      setAnswerOptions(ShuffleArray(options));
     }
   }
 
@@ -91,35 +90,46 @@ export default function TriviaGame() {
 
   function choosingOption(option: string, rightOption: string) {
     setAnswered(true);
-    option == rightOption ? setRightAnswer(true) : setRightAnswer(false);
+    option == rightOption
+      ? (setRightAnswer(true), setPoints((prev) => prev + 1))
+      : setRightAnswer(false);
     setQuestionIndex((prev) => prev + 1);
   }
 
   useEffect(() => {
-  prepareOptions();
-}, [questionIndex]);
+    prepareOptions();
+  }, [questions, questionIndex]);
+
+  if (totalQuestions > 0 && questionIndex >= totalQuestions) {
+    return (
+      <div>
+        <p>Game over!</p>
+
+        <p>Points: {points}</p>
+      </div>
+    );
+  }
 
   return (
     <>
       <p>Time remaning: {seconds}</p>
+      <p>Current points: {points}</p>
 
       {questions && (
         <div>
           <h1>Question {questionIndex + 1}</h1>
           <span>Difficulty:{questions[questionIndex].difficulty} </span>
           <h2>{decodeHTMLEntities(questions[questionIndex].question)}</h2>
-          <button
-            onClick={() => {
-              prepareOptions();
-            }}
-          >
-            Prepare answers
-          </button>
+
           <div
-            // className={`${rightAnswer ? "bg-green-300" : "bg-red-300"} flex justify-center`}
+            className={`${rightAnswer ? "bg-green-300" : "bg-red-300"} flex justify-center`}
           >
             {answered && (
-              <span>{rightAnswer ? "Right!" : "Incorrect..."} </span>
+              <span>
+                {rightAnswer
+                  ? "Right!"
+                  : `Incorrect... The answer was "${decodeHTMLEntities(questions[questionIndex - 1].correct_answer)}"`}{" "}
+              </span>
             )}
           </div>
           <div className="flex flex-col w-200 m-auto">
@@ -135,7 +145,7 @@ export default function TriviaGame() {
                   }}
                   className="bg-blue-700 border-2 border-gray-400 w-40  text-white py-2 px-5 rounded-lg hover:bg-blue-500 active:bg-blue-900 cursor-pointer"
                 >
-                  {answer}
+                  {decodeHTMLEntities(answer)}
                 </button>
               ))}
             </div>
