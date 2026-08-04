@@ -12,6 +12,7 @@ export default function TriviaGame() {
   const [answerOptions, setAnswerOptions] = useState<string[]>();
   const [answered, setAnswered] = useState<boolean>();
   const [rightAnswer, setRightAnswer] = useState<boolean>();
+  const [totalQuestions, setTotalQuestions] = useState<number>(0);
 
   useEffect(() => {
     async function cargandoDatos() {
@@ -26,6 +27,7 @@ export default function TriviaGame() {
   async function cargarDatosAPI(): Promise<Question[]> {
     const response = await fetch(API_URL);
     const json = await response.json();
+    setTotalQuestions(json.results.length);
     return json.results;
   }
 
@@ -44,7 +46,7 @@ export default function TriviaGame() {
     return result;
   }
 
-  const iniciarContador = () => {
+  const startCounter = () => {
     // Si ya hay un intervalo activo, no se crea otro
     if (timerRef.current !== null) return;
 
@@ -63,7 +65,9 @@ export default function TriviaGame() {
     }, 1000);
   };
 
-  function prepararOpciones() {
+  function prepareOptions() {
+    console.log("index: " + questionIndex);
+    
     if (questions) {
       const options: string[] = [
         questions[questionIndex].correct_answer,
@@ -76,7 +80,7 @@ export default function TriviaGame() {
 
   // Limpieza al desmontar el componente
   useEffect(() => {
-    iniciarContador();
+    startCounter();
 
     return () => {
       if (timerRef.current !== null) {
@@ -86,12 +90,14 @@ export default function TriviaGame() {
   }, []);
 
   function choosingOption(option: string, rightOption: string) {
-    console.log(option);
-    console.log("Right one", rightOption);
-
     setAnswered(true);
     option == rightOption ? setRightAnswer(true) : setRightAnswer(false);
+    setQuestionIndex((prev) => prev + 1);
   }
+
+  useEffect(() => {
+  prepareOptions();
+}, [questionIndex]);
 
   return (
     <>
@@ -104,20 +110,19 @@ export default function TriviaGame() {
           <h2>{decodeHTMLEntities(questions[questionIndex].question)}</h2>
           <button
             onClick={() => {
-              prepararOpciones();
+              prepareOptions();
             }}
           >
             Prepare answers
           </button>
           <div
-            className={`${rightAnswer ? "bg-green-300" : "bg-red-300"} flex justify-center`}
+            // className={`${rightAnswer ? "bg-green-300" : "bg-red-300"} flex justify-center`}
           >
             {answered && (
               <span>{rightAnswer ? "Right!" : "Incorrect..."} </span>
             )}
           </div>
           <div className="flex flex-col w-200 m-auto">
-           
             <div className="flex justify-center items-center gap-3 bg-gray-700 h-100">
               {answerOptions?.map((answer, index) => (
                 <button
