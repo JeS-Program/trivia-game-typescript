@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import decodeHTMLEntities from "../lib/decodeHTMLEntities";
+import ShuffleArray from "../lib/shuffleArray";
 
 export default function TriviaGame() {
-  const initialTime = 15;
+  const initialTime = 50;
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [seconds, setSeconds] = useState(initialTime);
   const [questions, setQuestions] = useState<Question[]>();
@@ -15,36 +16,40 @@ export default function TriviaGame() {
   const [totalQuestions, setTotalQuestions] = useState<number>(0);
   const [points, setPoints] = useState<number>(0);
 
-  useEffect(() => {
-    async function cargandoDatos() {
-      setQuestions(await cargarDatosAPI());
-    }
-    cargandoDatos();
-  }, []);
-
   const API_URL: QuestionAPI =
     "https://opentdb.com/api.php?amount=10&category=31";
 
-  async function cargarDatosAPI(): Promise<Question[]> {
-    const response = await fetch(API_URL);
-    const json = await response.json();
-    setTotalQuestions(json.results.length);
-    return json.results;
+  async function loadingDataAPI(): Promise<Question[]> {
+    try {
+      const response = await fetch(API_URL);
+      const json = await response.json();
+      setTotalQuestions(json.results.length);
+      return json.results;
+    } catch (error) {
+      return {
+        error: "Failed to fetch data from thhe API.",
+      } as unknown as Question[];
+    }
   }
 
-  function ShuffleArray(datos: string[]) {
-    // Copia para evitar mutar el arreglo original (buena práctica)
-    const result = [...datos];
+  function choosingOption(option: string, rightOption: string) {
+    setAnswered(true);
+    option == rightOption
+      ? (setRightAnswer(true), setPoints((prev) => prev + 1))
+      : setRightAnswer(false);
 
-    for (let i = result.length - 1; i > 0; i--) {
-      // Generar un índice aleatorio entre 0 e i
-      const j = Math.floor(Math.random() * (i + 1));
+    setQuestionIndex((prev) => prev + 1);
+  }
 
-      // Intercambiar los elementos result[i] y result[j]
-      [result[i], result[j]] = [result[j], result[i]];
+  function prepareOptions() {
+    if (questions && questionIndex < totalQuestions) {
+      const options: string[] = [
+        questions[questionIndex].correct_answer,
+        ...questions[questionIndex].incorrect_answers,
+      ];
+
+      setAnswerOptions(ShuffleArray(options));
     }
-
-    return result;
   }
 
   const startCounter = () => {
@@ -66,16 +71,12 @@ export default function TriviaGame() {
     }, 1000);
   };
 
-  function prepareOptions() {
-    if (questions && questionIndex < totalQuestions) {
-      const options: string[] = [
-        questions[questionIndex].correct_answer,
-        ...questions[questionIndex].incorrect_answers,
-      ];
-
-      setAnswerOptions(ShuffleArray(options));
+  useEffect(() => {
+    async function loadingData() {
+      setQuestions(await loadingDataAPI());
     }
-  }
+    loadingData();
+  }, []);
 
   // Limpieza al desmontar el componente
   useEffect(() => {
@@ -88,67 +89,101 @@ export default function TriviaGame() {
     };
   }, []);
 
-  function choosingOption(option: string, rightOption: string) {
-    setAnswered(true);
-    option == rightOption
-      ? (setRightAnswer(true), setPoints((prev) => prev + 1))
-      : setRightAnswer(false);
-    setQuestionIndex((prev) => prev + 1);
+  // Detener el temporizador si se han respondido todas las preguntas
+  useEffect(() => {
+  // Si ya no quedan preguntas por responder, detener el temporizador
+  if (totalQuestions > 0 && questionIndex >= totalQuestions) {
+    if (timerRef.current !== null) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
   }
+}, [questionIndex, totalQuestions]);
 
   useEffect(() => {
     prepareOptions();
   }, [questions, questionIndex]);
 
-  if (totalQuestions > 0 && questionIndex >= totalQuestions) {
+  if (
+    (totalQuestions > 0 && questionIndex >= totalQuestions) ||
+    seconds === 0
+  ) {
     return (
-      <div>
-        <p>Game over!</p>
+      <div className="m-auto flex flex-col gap-5">
+        <div className="text-white  bg-gray-800 p-10 rounded-2xl text-center font-bold text-xl">
+          <p>Game over!</p>
+          {seconds === 0 && <p>Time's up!</p>}
+          <p>Total points: {points}</p>
+        </div>
 
-        <p>Points: {points}</p>
+        <button className="bg-blue-600 text-white py-3 px-5 rounded-xl hover:bg-blue-400 active:bg-blue-900 cursor-pointer">
+          <a href="/">Play again</a>
+        </button>
       </div>
     );
   }
 
   return (
     <>
-      <p>Time remaning: {seconds}</p>
-      <p>Current points: {points}</p>
-
       {questions && (
-        <div>
-          <h1>Question {questionIndex + 1}</h1>
-          <span>Difficulty:{questions[questionIndex].difficulty} </span>
-          <h2>{decodeHTMLEntities(questions[questionIndex].question)}</h2>
+        <div className="flex flex-col gap-2 m-auto">
+          <section className=" flex justify-center">
+            <div className="flex justify-center items-center gap-10 text-white font-bold">
+              <p>Time remaining: {seconds}</p>
+              <p>Current points: {points}</p>
+            </div>
+          </section>
+          {/* Question Info */}
+          <section className="relative flex flex-col justify-center items-center bg-linear-to-r from-blue-950 via-blue-900 to-blue-950 text-white rounded-2xl h-60 w-300 m-auto">
+            <div className="flex flex-col justify-between my-10 items-center h-full mb-5">
+              {/* Question details */}
+              <div className="flex flex-col gap-2">
+                <h1 className="text-2xl font-bold text-center uppercase">
+                  Question {questionIndex + 1}
+                </h1>
+                <span className="text-lg font-semibold text-center uppercase mb-5">
+                  {questions[questionIndex].difficulty}{" "}
+                </span>
+                <h2>{decodeHTMLEntities(questions[questionIndex].question)}</h2>
+              </div>
 
-          <div
-            className={`${rightAnswer ? "bg-green-300" : "bg-red-300"} flex justify-center`}
-          >
-            {answered && (
-              <span>
-                {rightAnswer
-                  ? "Right!"
-                  : `Incorrect... The answer was "${decodeHTMLEntities(questions[questionIndex - 1].correct_answer)}"`}{" "}
-              </span>
-            )}
-          </div>
-          <div className="flex flex-col w-200 m-auto">
-            <div className="flex justify-center items-center gap-3 bg-gray-700 h-100">
+              {/* Answer Feedback */}
+              {answered && (
+                <div
+                  className={`font-bold text-gray-200 shadow-2xl rounded-2xl text-shadow-2xs py-1 px-3 border-2 border-gray-400 ${
+                    rightAnswer ? "bg-green-500" : "bg-red-400"
+                  } flex justify-center`}
+                >
+                  <span>
+                    {rightAnswer
+                      ? "Right!"
+                      : `Incorrect... The answer was "${decodeHTMLEntities(
+                          questions[questionIndex - 1].correct_answer
+                        )}"`}{" "}
+                  </span>
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* Answer Options */}
+          <div className="flex flex-col w-300 m-auto">
+            <section className="flex justify-center items-center gap-3 bg-gray-800  rounded-2xl h-25">
               {answerOptions?.map((answer, index) => (
                 <button
                   key={index}
                   onClick={() => {
                     choosingOption(
                       answer,
-                      questions[questionIndex].correct_answer,
+                      questions[questionIndex].correct_answer
                     );
                   }}
-                  className="bg-blue-700 border-2 border-gray-400 w-40  text-white py-2 px-5 rounded-lg hover:bg-blue-500 active:bg-blue-900 cursor-pointer"
+                  className="bg-gray-700 w-auto m-6  text-white py-3 px-5 rounded-xl hover:bg-gray-500 active:bg-gray-900 cursor-pointer"
                 >
                   {decodeHTMLEntities(answer)}
                 </button>
               ))}
-            </div>
+            </section>
           </div>
         </div>
       )}
