@@ -3,9 +3,17 @@
 import { useEffect, useRef, useState } from "react";
 import decodeHTMLEntities from "../lib/decodeHTMLEntities";
 import ShuffleArray from "../lib/shuffleArray";
+import { Question } from "../types/game";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 
-export default function TriviaGame() {
-  const initialTime = 50;
+export default function TriviaGame({
+  data,
+}: {
+  data: Question[] | { error: string };
+}) {
+  const initialTime = 100;
+  const router = useRouter();
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [seconds, setSeconds] = useState(initialTime);
   const [questions, setQuestions] = useState<Question[]>();
@@ -16,27 +24,14 @@ export default function TriviaGame() {
   const [totalQuestions, setTotalQuestions] = useState<number>(0);
   const [points, setPoints] = useState<number>(0);
 
-  const API_URL: QuestionAPI =
-    "https://opentdb.com/api.php?amount=10&category=31";
-
-  async function loadingDataAPI(): Promise<Question[]> {
-    try {
-      const response = await fetch(API_URL);
-      const json = await response.json();
-      setTotalQuestions(json.results.length);
-      return json.results;
-    } catch (error) {
-      return {
-        error: "Failed to fetch data from thhe API.",
-      } as unknown as Question[];
-    }
-  }
-
   function choosingOption(option: string, rightOption: string) {
     setAnswered(true);
-    option == rightOption
-      ? (setRightAnswer(true), setPoints((prev) => prev + 1))
-      : setRightAnswer(false);
+    if (option == rightOption) {
+      setRightAnswer(true);
+      setPoints((prev) => prev + 1);
+    } else {
+      setRightAnswer(false);
+    }
 
     setQuestionIndex((prev) => prev + 1);
   }
@@ -71,17 +66,38 @@ export default function TriviaGame() {
     }, 1000);
   };
 
+  const handlePlayAgain = () => {
+    // Limpiar los estados locales para volver al inicio
+    setQuestionIndex(0);
+    setPoints(0);
+    setSeconds(initialTime);
+    setAnswered(false);
+    setRightAnswer(undefined);
+
+    // Reiniciar el temporizador
+    startCounter();
+
+    // Solicitar nuevos datos al Server Component
+    router.refresh();
+  };
+
+  // Cargar los datos de la API cuando el componente se monta
   useEffect(() => {
     async function loadingData() {
-      setQuestions(await loadingDataAPI());
+      if (Array.isArray(data)) {
+        setQuestions(data);
+        setTotalQuestions(data.length);
+      } else {
+        console.log("object:", data);
+        console.error(data.error);
+      }
     }
     loadingData();
+    startCounter();
   }, []);
 
   // Limpieza al desmontar el componente
   useEffect(() => {
-    startCounter();
-
     return () => {
       if (timerRef.current !== null) {
         clearInterval(timerRef.current);
@@ -91,14 +107,14 @@ export default function TriviaGame() {
 
   // Detener el temporizador si se han respondido todas las preguntas
   useEffect(() => {
-  // Si ya no quedan preguntas por responder, detener el temporizador
-  if (totalQuestions > 0 && questionIndex >= totalQuestions) {
-    if (timerRef.current !== null) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
+    // Si ya no quedan preguntas por responder, detener el temporizador
+    if (totalQuestions > 0 && questionIndex >= totalQuestions) {
+      if (timerRef.current !== null) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
     }
-  }
-}, [questionIndex, totalQuestions]);
+  }, [questionIndex, totalQuestions]);
 
   useEffect(() => {
     prepareOptions();
@@ -116,8 +132,11 @@ export default function TriviaGame() {
           <p>Total points: {points}</p>
         </div>
 
-        <button className="bg-blue-600 text-white py-3 px-5 rounded-xl hover:bg-blue-400 active:bg-blue-900 cursor-pointer">
-          <a href="/">Play again</a>
+        <button
+          onClick={handlePlayAgain}
+          className="bg-blue-600 text-white text-center py-3 px-5 rounded-xl hover:bg-blue-400 active:bg-blue-900 cursor-pointer"
+        >
+          Play again
         </button>
       </div>
     );
@@ -139,7 +158,7 @@ export default function TriviaGame() {
               {/* Question details */}
               <div className="flex flex-col gap-2">
                 <h1 className="text-2xl font-bold text-center uppercase">
-                  Question {questionIndex + 1}
+                  Question {questionIndex + 1}/{totalQuestions}
                 </h1>
                 <span className="text-lg font-semibold text-center uppercase mb-5">
                   {questions[questionIndex].difficulty}{" "}
@@ -171,7 +190,7 @@ export default function TriviaGame() {
             <section className="flex justify-center items-center gap-3 bg-gray-800  rounded-2xl h-25">
               {answerOptions?.map((answer, index) => (
                 <button
-                  key={index}
+                  key={answer}
                   onClick={() => {
                     choosingOption(
                       answer,
