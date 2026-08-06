@@ -67,7 +67,18 @@ export default function TriviaGame({
   };
 
   const handlePlayAgain = () => {
-    // Limpiar los estados locales para volver al inicio
+    // Solicitar nuevos datos al Server Component
+    router.refresh();
+  };
+
+  // Cargar los datos de la API cuando el componente se monta
+  useEffect(() => {
+    if (Array.isArray(data)) {
+    // 1. Guardar las preguntas nuevas
+    setQuestions(data);
+    setTotalQuestions(data.length);
+
+    // 2. Reiniciar los estados locales cuando llegan los datos nuevos
     setQuestionIndex(0);
     setPoints(0);
     setSeconds(initialTime);
@@ -76,25 +87,10 @@ export default function TriviaGame({
 
     // Reiniciar el temporizador
     startCounter();
-
-    // Solicitar nuevos datos al Server Component
-    router.refresh();
-  };
-
-  // Cargar los datos de la API cuando el componente se monta
-  useEffect(() => {
-    async function loadingData() {
-      if (Array.isArray(data)) {
-        setQuestions(data);
-        setTotalQuestions(data.length);
-      } else {
-        console.log("object:", data);
-        console.error(data.error);
-      }
-    }
-    loadingData();
-    startCounter();
-  }, []);
+  } else if (data && "error" in data) {
+    console.error(data.error);
+  }
+  }, [data]);
 
   // Limpieza al desmontar el componente
   useEffect(() => {
